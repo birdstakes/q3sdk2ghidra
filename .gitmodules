@@ -1,0 +1,3 @@
+[submodule "qvm-translator"]
+	path = qvm-translator
+	url = https://github.com/birdstakes/qvm-translator
