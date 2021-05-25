@@ -1,6 +1,8 @@
 from ghidra.app.cmd.data import CreateDataCmd
 from ghidra.app.util.cparser.C import CParser
 from ghidra.app.cmd.function import ApplyFunctionDataTypesCmd
+from ghidra.program.model.data import DoubleDataType, FloatDataType
+from ghidra.program.model.listing import VariableStorage
 from ghidra.program.model.symbol import SourceType
 from ghidra.util.data import DataTypeParser
 
@@ -29,8 +31,35 @@ with open('types') as f:
         cmd = CreateDataCmd(symbols[0].address, True, dt)
         cmd.applyTo(currentProgram)
 
+vec3_t = dtParser.parse("vec3_t")
+
+f = getFirstFunction()
+while f is not None:
+    f.setCallingConvention("__cdecl")
+
+    for param in f.getParameters():
+        if param.getDataType().isEquivalent(DoubleDataType.dataType):
+            print('fixing %s double param' % f)
+            param.setDataType(FloatDataType.dataType, SourceType.ANALYSIS)
+        elif param.getDataType().isEquivalent(vec3_t):
+            # TODO other vec_* types
+            print('fixing %s vec3_t param' % f)
+            param.setDataType(dtMgr.getPointer(FloatDataType.dataType), SourceType.ANALYSIS)
+
+    is_float_return = f.getReturn().getDataType().isEquivalent(FloatDataType.dataType)
+    is_double_return = f.getReturn().getDataType().isEquivalent(DoubleDataType.dataType)
+
+    if is_float_return or is_double_return:
+        print('fixing %s return' % f)
+        f.setCustomVariableStorage(True)
+        f.setReturn(
+            FloatDataType.dataType,
+            VariableStorage(currentProgram, [currentProgram.getRegister('eax')]),
+            SourceType.ANALYSIS
+        )
+
+    f = getFunctionAfter(f)
+
 # TODO
-# set types for data items
-# set return value location to EAX for functions that return floats
 # preprocess a file with all the defines in it and use populateDefineEquates
 #  might need to put them in separate files with the original names

@@ -224,6 +224,8 @@ def process_source_files(files, c_output, types_output):
     result = io.StringIO()
     types = io.StringIO()
 
+    handled_functions = set()
+
     for path in files:
         print(path)
         print('='*80)
@@ -238,22 +240,21 @@ def process_source_files(files, c_output, types_output):
         array_size_fixer = ArraySizeFixer(enum_evaluator.enums)
         array_size_fixer.visit(ast)
 
-        # TODO change vec3_t etc. in param lists to float* because of ghidra
         # TODO convert function pointers to ints
         #  maybe do this in ghidra though so we can easily create references to the
         #  functions afterwards
 
         for decl in ast.ext:
             if isinstance(decl, c_ast.FuncDef):
-                # skip function bodies
-                # TODO actually handle their types but skip bodies
-                continue
+                # we don't care about the function's body
+                decl = decl.decl
+
             if hasattr(decl, 'storage') and 'extern' in decl.storage:
                 continue
 
             if (
                 isinstance(decl, c_ast.Enum)
-                or isinstance(decl, c_ast.FuncDecl)
+                or isinstance(decl, c_ast.FuncDecl) # TODO remove if possible
                 or isinstance(decl, c_ast.FuncDef)
                 or isinstance(decl, c_ast.Struct)
                 or isinstance(decl, c_ast.Typedef)
@@ -265,6 +266,20 @@ def process_source_files(files, c_output, types_output):
                     )
                 )
             ):
+                if isinstance(decl, c_ast.FuncDecl):
+                    # TODO remove this check and corresponding `or isinstance(...` after
+                    # ensuring this never happens
+                    print('got a FuncDecl')
+
+
+                # skip functions we've already handled because there are a few small
+                # inconsistencies ghidra doesn't like (e.g. vec_t in some declarations
+                # but float in others)
+                if isinstance(decl, c_ast.Decl) and isinstance(decl.type, c_ast.FuncDecl):
+                    if decl.name in handled_functions:
+                        continue
+                    handled_functions.add(decl.name)
+
                 result.write(f'#line {decl.coord.line}: "{decl.coord.file}"\n')
                 result.write(generator.visit(decl) + ';\n')
 
