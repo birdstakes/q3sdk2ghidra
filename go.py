@@ -1,4 +1,5 @@
 import glob
+import io
 import os
 import shutil
 import subprocess
@@ -13,11 +14,10 @@ def main():
         os.environ['PATH'] = 'Q:/quake3/bin_nt;' + os.environ['PATH']
         os.chdir('Q:')
 
-        #fix_source()
-        #build_vms()
-        #translate_vms()
-        process_headers()
-        #ghidra()
+        fix_source()
+        build_vms()
+        translate_vms()
+        ghidra()
     finally:
         os.system('subst Q: /D')
 
@@ -61,29 +61,28 @@ def ghidra():
     os.chdir('ghidra')
 
     analyze = Path('C:/Users/Josh/Programs/ghidra/support/analyzeHeadless.bat')
-    subprocess.run([
-        analyze,
-        '.', 'baseq3',
-        '-postScript', 'parse_headers.py',
-        '-overwrite',
-        '-import', '../quake3/baseq3/vm/qagame.xml'
-    ])
 
-
-    '''
-    analyze = Path('C:/Users/Josh/Programs/ghidra/support/analyzeHeadless.bat')
-    subprocess.run([
-        analyze,
-        '.', 'baseq3',
-        '-postScript', 'parse_headers.py',
-        '-noanalysis',
-        '-process', 'qagame',
-    ])
-    '''
+    if True:
+        subprocess.run([
+            analyze,
+            '.', 'baseq3',
+            '-postScript', 'parse_headers.py',
+            '-overwrite',
+            '-import', '../quake3/baseq3/vm/qagame.xml'
+        ])
+    else:
+        analyze = Path('C:/Users/Josh/Programs/ghidra/support/analyzeHeadless.bat')
+        subprocess.run([
+            analyze,
+            '.', 'baseq3',
+            '-postScript', 'parse_headers.py',
+            '-noanalysis',
+            '-process', 'qagame',
+        ])
 
 game_source_files = [
     'g_main.c',
-    'g_syscalls.c',
+    #'g_syscalls.c',
     'bg_misc.c',
     'bg_lib.c',
     'bg_pmove.c',
@@ -214,29 +213,24 @@ class ArraySizeFixer(c_ast.NodeVisitor):
             node.type.dim = c_ast.Constant(type='int', value=str(dim))
 
 def process_headers():
-    def cpp(src, dst):
-        subprocess.run([
-            'quake3/source/lcc/bin/cpp',
-            '-Iquake3/code/game', '-Iquake3/code/cgame', '-Iquake3/code/q3_ui',
-            '-DQ3_VM', '-DID_INLINE=',
-            src, dst
-        ])
+    process_source_files(
+        [Path('quake3/code/game/').joinpath(path) for path in game_source_files],
+        'ghidra/game.c', 'ghidra/types'
+    )
 
-    #cpp('quake3/code/game/g_local.h', 'ghidra/g_local.h')
-
-    # maybe ghidra doesn't need the c files, just the result of finding their types
-    # though some types are defined in c files... maybe extract them?
-
+def process_source_files(files, c_output, types_output):
     parser = c_parser.CParser()
     generator = c_generator.CGenerator()
-    for path in game_source_files:
+    result = io.StringIO()
+    types = io.StringIO()
+
+    for path in files:
         print(path)
         print('='*80)
 
-        path = Path('quake3/code/game/').joinpath(path)
-        cpp(path, 'ghidra/temp.c')
+        cpp(path, c_output)
 
-        with open('ghidra/temp.c') as f:
+        with open(c_output) as f:
             ast = parser.parse(f.read(), f.name)
 
         enum_evaluator = EnumEvaluator()
@@ -244,23 +238,59 @@ def process_headers():
         array_size_fixer = ArraySizeFixer(enum_evaluator.enums)
         array_size_fixer.visit(ast)
 
+        # TODO change vec3_t etc. in param lists to float* because of ghidra
+        # TODO convert function pointers to ints
+        #  maybe do this in ghidra though so we can easily create references to the
+        #  functions afterwards
+
         for decl in ast.ext:
-            if not isinstance(decl, c_ast.Decl):
+            if isinstance(decl, c_ast.FuncDef):
+                # skip function bodies
+                # TODO actually handle their types but skip bodies
                 continue
-            if isinstance(decl.type, c_ast.FuncDecl):
-                continue
-            if decl.name is None:
-                continue
-            if 'static' in decl.storage or 'extern' in decl.storage:
+            if hasattr(decl, 'storage') and 'extern' in decl.storage:
                 continue
 
-            # TODO
-            # spit out only decls into a giant header for ghidra?
+            if (
+                isinstance(decl, c_ast.Enum)
+                or isinstance(decl, c_ast.FuncDecl)
+                or isinstance(decl, c_ast.FuncDef)
+                or isinstance(decl, c_ast.Struct)
+                or isinstance(decl, c_ast.Typedef)
+                or (
+                    isinstance(decl, c_ast.Decl)
+                    and (
+                        isinstance(decl.type, c_ast.Struct)
+                        or isinstance(decl.type, c_ast.FuncDecl)
+                    )
+                )
+            ):
+                result.write(f'#line {decl.coord.line}: "{decl.coord.file}"\n')
+                result.write(generator.visit(decl) + ';\n')
 
-            print(f'{decl.name} ::  {generator.visit(decl.type)}')
+            if isinstance(decl, c_ast.Decl):
+                if isinstance(decl.type, c_ast.FuncDecl):
+                    continue
+                if decl.name is None:
+                    continue
 
-        print()
+                types.write(f'{decl.name}:{generator.visit(decl.type)}\n')
 
+    with open(c_output, 'w') as f:
+        result.seek(0)
+        f.write(result.read())
+
+    with open(types_output, 'w') as f:
+        types.seek(0)
+        f.write(types.read())
+
+def cpp(src, dst):
+    subprocess.run([
+        'quake3/source/lcc/bin/cpp',
+        '-Iquake3/code/game', '-Iquake3/code/cgame', '-Iquake3/code/q3_ui',
+        '-DQ3_VM', '-DID_INLINE=',
+        src, dst
+    ])
 
 if __name__ == '__main__':
     main()
