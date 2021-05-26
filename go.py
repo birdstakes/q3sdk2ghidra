@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from pcpp.preprocessor import Preprocessor
 from pycparser import c_ast, c_generator, c_parser
 
 
@@ -55,93 +56,155 @@ def translate_vms():
 
 
 def ghidra():
-    process_headers()
+    def run(vm):
+        # work around scriptPath not working for python scripts in 9.2
+        os.chdir('ghidra')
 
-    # work around scriptPath not working for python scripts in 9.2
-    os.chdir('ghidra')
-
-    analyze = Path('C:/Users/Josh/Programs/ghidra/support/analyzeHeadless.bat')
-
-    if True:
-        subprocess.run([
-            analyze,
-            '.', 'baseq3',
-            '-postScript', 'parse_headers.py',
-            '-overwrite',
-            '-import', '../quake3/baseq3/vm/qagame.xml'
-        ])
-    else:
         analyze = Path('C:/Users/Josh/Programs/ghidra/support/analyzeHeadless.bat')
-        subprocess.run([
-            analyze,
-            '.', 'baseq3',
-            '-postScript', 'parse_headers.py',
-            '-noanalysis',
-            '-process', 'qagame',
-        ])
+
+        if True:
+            subprocess.run([
+                analyze,
+                '.', 'baseq3',
+                '-postScript', 'parse_headers.py',
+                '-overwrite',
+                '-import', f'../quake3/baseq3/vm/{vm}.xml'
+            ])
+        else:
+            analyze = Path('C:/Users/Josh/Programs/ghidra/support/analyzeHeadless.bat')
+            subprocess.run([
+                analyze,
+                '.', 'baseq3',
+                '-postScript', 'parse_headers.py',
+                '-noanalysis',
+                '-process', vm,
+            ])
+
+        os.chdir('..')
+
+    process_source_files(game_source_files)
+    run('qagame')
+
+    process_source_files(cgame_source_files)
+    run('cgame')
+
+    #process_source_files(ui_source_files)
+    #run('ui')
 
 game_source_files = [
-    'g_main.c',
-    #'g_syscalls.c',
-    'bg_misc.c',
-    'bg_lib.c',
-    'bg_pmove.c',
-    'bg_slidemove.c',
-    'q_math.c',
-    'q_shared.c',
-    'ai_dmnet.c',
-    'ai_dmq3.c',
-    'ai_main.c',
-    'ai_chat.c',
-    'ai_cmd.c',
-    'ai_team.c',
-    'g_active.c',
-    'g_arenas.c',
-    'g_bot.c',
-    'g_client.c',
-    'g_cmds.c',
-    'g_combat.c',
-    'g_items.c',
-    'g_mem.c',
-    'g_misc.c',
-    'g_missile.c',
-    'g_mover.c',
-    'g_session.c',
-    'g_spawn.c',
-    'g_svcmds.c',
-    'g_target.c',
-    'g_team.c',
-    'g_trigger.c',
-    'g_utils.c',
-    'g_weapon.c',
-    'ai_vcmd.c',
+    Path('quake3/code/game/').joinpath(path) for path in [
+        'g_main.c',
+        #'g_syscalls.c',
+        'bg_misc.c',
+        'bg_lib.c',
+        'bg_pmove.c',
+        'bg_slidemove.c',
+        'q_math.c',
+        'q_shared.c',
+        'ai_dmnet.c',
+        'ai_dmq3.c',
+        'ai_main.c',
+        'ai_chat.c',
+        'ai_cmd.c',
+        'ai_team.c',
+        'g_active.c',
+        'g_arenas.c',
+        'g_bot.c',
+        'g_client.c',
+        'g_cmds.c',
+        'g_combat.c',
+        'g_items.c',
+        'g_mem.c',
+        'g_misc.c',
+        'g_missile.c',
+        'g_mover.c',
+        'g_session.c',
+        'g_spawn.c',
+        'g_svcmds.c',
+        'g_target.c',
+        'g_team.c',
+        'g_trigger.c',
+        'g_utils.c',
+        'g_weapon.c',
+        'ai_vcmd.c',
+    ]
 ]
 
 cgame_source_files = [
-    '../game/bg_misc.c',
-    '../game/bg_pmove.c',
-    '../game/bg_slidemove.c',
-    '../game/bg_lib.c',
-    '../game/q_math.c',
-    '../game/q_shared.c',
-    'cg_consolecmds.c',
-    'cg_draw.c',
-    'cg_drawtools.c',
-    'cg_effects.c',
-    'cg_ents.c',
-    'cg_event.c',
-    'cg_info.c',
-    'cg_localents.c',
-    'cg_main.c',
-    'cg_marks.c',
-    'cg_players.c',
-    'cg_playerstate.c',
-    'cg_predict.c',
-    'cg_scoreboard.c',
-    'cg_servercmds.c',
-    'cg_snapshot.c',
-    'cg_view.c',
-    'cg_weapons.c',
+    Path('quake3/code/cgame/').joinpath(path) for path in [
+        '../game/bg_misc.c',
+        '../game/bg_pmove.c',
+        '../game/bg_slidemove.c',
+        '../game/bg_lib.c',
+        '../game/q_math.c',
+        '../game/q_shared.c',
+        'cg_consolecmds.c',
+        'cg_draw.c',
+        'cg_drawtools.c',
+        'cg_effects.c',
+        'cg_ents.c',
+        'cg_event.c',
+        'cg_info.c',
+        'cg_localents.c',
+        'cg_main.c',
+        'cg_marks.c',
+        'cg_players.c',
+        'cg_playerstate.c',
+        'cg_predict.c',
+        'cg_scoreboard.c',
+        'cg_servercmds.c',
+        'cg_snapshot.c',
+        'cg_view.c',
+        'cg_weapons.c',
+    ]
+]
+
+ui_source_files = [
+    Path('quake3/code/q3_ui/').joinpath(path) for path in [
+        'ui_main.c',
+        'ui_cdkey.c',
+        'ui_ingame.c',
+        'ui_serverinfo.c',
+        'ui_confirm.c',
+        'ui_setup.c',
+        '../game/bg_misc.c',
+        '../game/bg_lib.c',
+        '../game/q_math.c',
+        '../game/q_shared.c',
+        'ui_gameinfo.c',
+        'ui_atoms.c',
+        'ui_connect.c',
+        'ui_controls2.c',
+        'ui_demo2.c',
+        'ui_mfield.c',
+        'ui_credits.c',
+        'ui_menu.c',
+        'ui_options.c',
+        'ui_display.c',
+        'ui_sound.c',
+        'ui_network.c',
+        'ui_playermodel.c',
+        'ui_players.c',
+        'ui_playersettings.c',
+        'ui_preferences.c',
+        'ui_qmenu.c',
+        'ui_servers2.c',
+        'ui_sparena.c',
+        'ui_specifyleague.c',
+        'ui_specifyserver.c',
+        'ui_splevel.c',
+        'ui_sppostgame.c',
+        'ui_startserver.c',
+        'ui_syscalls.c',
+        'ui_team.c',
+        'ui_video.c',
+        'ui_cinematics.c',
+        'ui_spskill.c',
+        'ui_addbots.c',
+        'ui_removebots.c',
+        'ui_teamorders.c',
+        'ui_mods.c',
+    ]
 ]
 
 class EnumEvaluator(c_ast.NodeVisitor):
@@ -194,7 +257,7 @@ class ExpressionEvaluator:
     def visit_ID(self, node):
         return self.enums[node.name]
 
-class ArraySizeFixer(c_ast.NodeVisitor):
+class ArraySizeSimplifier(c_ast.NodeVisitor):
     def __init__(self, enums=None):
         super().__init__()
         self.evaluator = ExpressionEvaluator(enums)
@@ -207,38 +270,71 @@ class ArraySizeFixer(c_ast.NodeVisitor):
 
         if not isinstance(node.type.dim, c_ast.Constant):
             if node.type.dim is None:
-                dim = len(node.init.exprs)
+                if isinstance(node.init, c_ast.InitList):
+                    dim = len(node.init.exprs)
+                elif isinstance(node.init, c_ast.Constant) and node.init.type == 'string':
+                    dim = len(node.init.value) - 2 + 1 # stip off quotes and add null byte
+                else:
+                    print('warning: unhandled array size')
+                    dim = 0
             else:
                 dim = self.evaluator.visit(node.type.dim)
             node.type.dim = c_ast.Constant(type='int', value=str(dim))
 
-def process_headers():
-    process_source_files(
-        [Path('quake3/code/game/').joinpath(path) for path in game_source_files],
-        'ghidra/game.c', 'ghidra/types'
-    )
+class CPP(Preprocessor):
+    def __init__(self):
+        super().__init__()
+        self.expression_evaluator = ExpressionEvaluator()
+        self.c_parser = c_parser.CParser()
+        self.define('Q3_VM')
+        self.define('ID_INLINE')
+        self.add_path('quake3/code/game')
+        self.add_path('quake3/code/cgame')
+        self.add_path('quake3/code/q3_ui')
 
-def process_source_files(files, c_output, types_output):
+    def process(self, path):
+        with open(path) as f:
+            self.parse(f.read(), path)
+        buf = io.StringIO()
+        self.write(buf)
+        return buf.getvalue()
+
+    def eval(self, expression):
+        # hackiest shit on earth nominee
+        buf = io.StringIO()
+        self.parse(expression)
+        self.write(buf)
+        try:
+            ast = self.c_parser.parse(f'int x = {buf.getvalue()};')
+            return self.expression_evaluator.visit(ast.ext[0].init)
+        except:
+            raise ValueError('invalid integral expression') from None
+
+def process_source_files(files):
     parser = c_parser.CParser()
     generator = c_generator.CGenerator()
     result = io.StringIO()
     types = io.StringIO()
 
     handled_functions = set()
+    defines = {}
 
     for path in files:
-        print(path)
-        print('='*80)
+        print(f'processing {path}...')
 
-        cpp(path, c_output)
+        cpp = CPP()
+        ast = parser.parse(cpp.process(path))
 
-        with open(c_output) as f:
-            ast = parser.parse(f.read(), f.name)
+        for define in cpp.macros:
+            try:
+                defines[define] = (cpp.eval(define), cpp.macros[define].source)
+            except ValueError:
+                pass
 
         enum_evaluator = EnumEvaluator()
         enum_evaluator.visit(ast)
-        array_size_fixer = ArraySizeFixer(enum_evaluator.enums)
-        array_size_fixer.visit(ast)
+        array_size_simplifier = ArraySizeSimplifier(enum_evaluator.enums)
+        array_size_simplifier.visit(ast)
 
         # TODO convert function pointers to ints
         #  maybe do this in ghidra though so we can easily create references to the
@@ -291,21 +387,20 @@ def process_source_files(files, c_output, types_output):
 
                 types.write(f'{decl.name}:{generator.visit(decl.type)}\n')
 
-    with open(c_output, 'w') as f:
+    with open('ghidra/headers.h', 'w') as f:
         result.seek(0)
         f.write(result.read())
+        for name in defines:
+            value, source = defines[name]
+            if len(source) == 0:
+                continue
+            source = Path(source).name
+            f.write(f'#line 1: "{source}"\n')
+            f.write(f'enum define_{name} {{ {name} = {value} }};\n')
 
-    with open(types_output, 'w') as f:
+    with open('ghidra/types', 'w') as f:
         types.seek(0)
         f.write(types.read())
-
-def cpp(src, dst):
-    subprocess.run([
-        'quake3/source/lcc/bin/cpp',
-        '-Iquake3/code/game', '-Iquake3/code/cgame', '-Iquake3/code/q3_ui',
-        '-DQ3_VM', '-DID_INLINE=',
-        src, dst
-    ])
 
 if __name__ == '__main__':
     main()

@@ -10,7 +10,7 @@ dtMgr = currentProgram.getDataTypeManager()
 dtParser = DataTypeParser(dtMgr, None, None, DataTypeParser.AllowedDataTypes.ALL)
 
 parser = CParser(dtMgr, True, None)
-with open('game.c') as f:
+with open('headers.h') as f:
     parser.parse(f.read())
 
 cmd = ApplyFunctionDataTypesCmd([dtMgr], None, SourceType.USER_DEFINED, True, True)
@@ -42,7 +42,7 @@ while f is not None:
             print('fixing %s double param' % f)
             param.setDataType(FloatDataType.dataType, SourceType.ANALYSIS)
         elif param.getDataType().isEquivalent(vec3_t):
-            # TODO other vec_* types
+            # TODO other vec_* types, arrays of vec_* types
             print('fixing %s vec3_t param' % f)
             param.setDataType(dtMgr.getPointer(FloatDataType.dataType), SourceType.ANALYSIS)
 
@@ -59,7 +59,3 @@ while f is not None:
         )
 
     f = getFunctionAfter(f)
-
-# TODO
-# preprocess a file with all the defines in it and use populateDefineEquates
-#  might need to put them in separate files with the original names
